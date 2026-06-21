@@ -1,0 +1,43 @@
+# =============================================================================
+# P3 — Lambda Architecture
+# =============================================================================
+# Architecture: Mosquitto → Ingest API → MongoDB (telemetry_raw) + Kafka
+#               Batch layer: Go worker runs hourly, rewrites telemetry_aggregated
+#                            from full telemetry_raw history (zone_daily,
+#                            cultivation_daily, cultivation_180d_rollup).
+#               Speed layer: Redis holds per-sensor latest readings for the
+#                            most recent 60-minute window (serves Q1).
+#               Dashboard queries merge batch (telemetry_aggregated) + speed
+#               (Redis) to produce complete, up-to-date answers.
+#
+# Reference: benchmark_schema_design_v41.pdf §9 (Architecture overview)
+#            implementation_decisions.md Decisions P0.2–P0.5
+# =============================================================================
+
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: benchmark-mongodb-p3
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb-data-p3:/data/db
+      - ./mongo-init/p2p3:/docker-entrypoint-initdb.d:ro
+    environment:
+      MONGO_INITDB_DATABASE: iot_benchmark
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  # Kafka (KRaft mode, no Zookeeper) — to be added
+  # Redis (speed layer, 60-min window) — to be added
+  # Mosquitto MQTT broker — to be added
+  # Ingest API (Node.js) — to be added
+  # Go background worker (hourly batch) — to be added
+
+volumes:
+  mongodb-data-p3:

@@ -1,0 +1,37 @@
+# Claude Code internals — never commit
+.claude/
+
+# macOS
+.DS_Store
+
+# Node.js (ingest API)
+node_modules/
+dist/
+*.log
+npm-debug.log*
+
+# Go binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+
+# Go test cache
+*.test
+*.out
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Docker volumes (if ever stored locally)
+data/
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo

@@ -1,0 +1,34 @@
+# =============================================================================
+# P1 — Single-Store Baseline
+# =============================================================================
+# Architecture: Mosquitto → Ingest API → MongoDB (telemetry_raw)
+# All queries run live against telemetry_raw using aggregation pipelines.
+# No Kafka, no background workers, no Redis.
+#
+# Reference: benchmark_schema_design_v41.pdf §9 (Architecture overview)
+# =============================================================================
+
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: benchmark-mongodb-p1
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb-data-p1:/data/db
+      - ./mongo-init/p1:/docker-entrypoint-initdb.d:ro
+    environment:
+      MONGO_INITDB_DATABASE: iot_benchmark
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  # Mosquitto MQTT broker — to be added
+  # Ingest API (Node.js) — to be added
+
+volumes:
+  mongodb-data-p1:
