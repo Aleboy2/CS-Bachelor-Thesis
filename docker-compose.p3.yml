@@ -1,6 +1,7 @@
 # =============================================================================
 # P3 — Lambda Architecture
 # =============================================================================
+name: benchmark-p3
 # Architecture: Mosquitto → Ingest API → MongoDB (telemetry_raw) + Kafka
 #               Batch layer: Go worker runs hourly, rewrites telemetry_aggregated
 #                            from full telemetry_raw history (zone_daily,
@@ -9,9 +10,6 @@
 #                            most recent 60-minute window (serves Q1).
 #               Dashboard queries merge batch (telemetry_aggregated) + speed
 #               (Redis) to produce complete, up-to-date answers.
-#
-# Reference: benchmark_schema_design_v41.pdf §9 (Architecture overview)
-#            implementation_decisions.md Decisions P0.2–P0.5
 # =============================================================================
 
 services:

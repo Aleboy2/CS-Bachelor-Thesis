@@ -1,11 +1,10 @@
 # =============================================================================
 # P1 — Single-Store Baseline
 # =============================================================================
+name: benchmark-p1
 # Architecture: Mosquitto → Ingest API → MongoDB (telemetry_raw)
 # All queries run live against telemetry_raw using aggregation pipelines.
 # No Kafka, no background workers, no Redis.
-#
-# Reference: benchmark_schema_design_v41.pdf §9 (Architecture overview)
 # =============================================================================
 
 services:

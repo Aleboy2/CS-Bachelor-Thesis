@@ -1,14 +1,12 @@
 # =============================================================================
 # P2 — CQRS (Command Query Responsibility Segregation)
 # =============================================================================
+name: benchmark-p2
 # Architecture: Mosquitto → Ingest API → MongoDB (telemetry_raw) + Kafka
 #               Go worker consumes Kafka continuously, upserts into
 #               telemetry_aggregated (zone_daily, cultivation_daily,
 #               cultivation_180d_rollup, latest_by_sensor).
 #               Dashboard queries read from telemetry_aggregated.
-#
-# Reference: benchmark_schema_design_v41.pdf §9 (Architecture overview)
-#            implementation_decisions.md Decisions P0.2–P0.5
 # =============================================================================
 
 services:
