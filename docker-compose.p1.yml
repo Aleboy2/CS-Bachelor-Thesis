@@ -1,11 +1,15 @@
 # =============================================================================
 # P1 — Single-Store Baseline
 # =============================================================================
-name: benchmark-p1
+# LAYER: Orchestration. Defines and wires every container for this prototype;
+#   run with `docker compose -f docker-compose.p1.yml up --build -d` from the
+#   repo root.
+#
 # Architecture: Mosquitto → Ingest API → MongoDB (telemetry_raw)
 # All queries run live against telemetry_raw using aggregation pipelines.
 # No Kafka, no background workers, no Redis.
 # =============================================================================
+name: benchmark-p1
 
 services:
   mongodb:
@@ -26,8 +30,34 @@ services:
       start_period: 15s
     restart: unless-stopped
 
-  # Mosquitto MQTT broker — to be added
-  # Ingest API (Node.js) — to be added
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: benchmark-mosquitto-p1
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    healthcheck:
+      test: ["CMD", "mosquitto_pub", "-t", "healthcheck", "-m", "ping", "-p", "1883"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  ingest-api:
+    build: ./ingest-api
+    container_name: benchmark-ingest-p1
+    environment:
+      PROTOTYPE: p1
+      MONGO_URI: mongodb://mongodb:27017/iot_benchmark
+      MQTT_BROKER_URL: mqtt://mosquitto:1883
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   mongodb-data-p1:

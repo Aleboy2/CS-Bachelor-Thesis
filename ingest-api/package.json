@@ -1,0 +1,17 @@
+{
+  "name": "ingest-api",
+  "version": "1.0.0",
+  "description": "Shared MQTT-to-MongoDB ingest service for the IoT telemetry benchmark (P1/P2/P3). See /CLAUDE.md for locked design decisions.",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "mqtt": "^5.10.1",
+    "mongodb": "^6.10.0",
+    "kafkajs": "^2.2.4",
+    "ioredis": "^5.4.1"
+  }
+}

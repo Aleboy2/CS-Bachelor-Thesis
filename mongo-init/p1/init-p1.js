@@ -1,6 +1,15 @@
 // =============================================================================
 // P1 (Single-Store Baseline) — MongoDB Initialisation Script
 // =============================================================================
+// LAYER: Data layer bootstrap (schema + index creation only, no data).
+//
+// EXECUTED BY: the mongo:7.0 Docker entrypoint, mounted read-only into
+//   /docker-entrypoint-initdb.d and run automatically via mongosh the first
+//   time the container starts against an empty data directory (see
+//   docker-compose.p1.yml). Nothing else in the repo calls this file.
+// WRITTEN TO:  the `iot_benchmark` database inside the P1 MongoDB container.
+//   The Go generator seeds device_registry data afterwards; the ingest API
+//   (ingest-api/src/mongo.js) reads/writes telemetry_raw at runtime.
 //
 // Creates:
 //   - device_registry   (static lookup table, one doc per sensor)

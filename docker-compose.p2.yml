@@ -28,10 +28,83 @@ services:
       start_period: 15s
     restart: unless-stopped
 
-  # Kafka (KRaft mode, no Zookeeper) — to be added
-  # Mosquitto MQTT broker — to be added
-  # Ingest API (Node.js) — to be added
-  # Go background worker (continuous) — to be added
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: benchmark-mosquitto-p2
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    healthcheck:
+      test: ["CMD", "mosquitto_pub", "-t", "healthcheck", "-m", "ping", "-p", "1883"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Kafka (KRaft mode, no Zookeeper) — single-node, 1 partition
+  # Topic telemetry-raw-events auto-created on first publish.
+  # Locked decisions: CLAUDE.md §2, P0.6
+  # ---------------------------------------------------------------------------
+  kafka:
+    image: apache/kafka:3.8.1
+    container_name: benchmark-kafka-p2
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_NUM_PARTITIONS: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    volumes:
+      - kafka-data-p2:/tmp/kraft-combined-logs
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  ingest-api:
+    build: ./ingest-api
+    container_name: benchmark-ingest-p2
+    environment:
+      PROTOTYPE: p2
+      MONGO_URI: mongodb://mongodb:27017/iot_benchmark
+      MQTT_BROKER_URL: mqtt://mosquitto:1883
+      KAFKA_BROKER_URL: kafka:9092
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Go background worker (continuous Kafka consumer → telemetry_aggregated)
+  # ---------------------------------------------------------------------------
+  worker:
+    build: ./worker
+    container_name: benchmark-worker-p2
+    command: ["--mode", "p2", "--mongo-uri", "mongodb://mongodb:27017/iot_benchmark", "--kafka-broker", "kafka:9092"]
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   mongodb-data-p2:
+  kafka-data-p2:

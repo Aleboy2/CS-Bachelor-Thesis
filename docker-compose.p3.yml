@@ -31,11 +31,105 @@ services:
       start_period: 15s
     restart: unless-stopped
 
-  # Kafka (KRaft mode, no Zookeeper) — to be added
-  # Redis (speed layer, 60-min window) — to be added
-  # Mosquitto MQTT broker — to be added
-  # Ingest API (Node.js) — to be added
-  # Go background worker (hourly batch) — to be added
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: benchmark-mosquitto-p3
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    healthcheck:
+      test: ["CMD", "mosquitto_pub", "-t", "healthcheck", "-m", "ping", "-p", "1883"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Kafka (KRaft mode, no Zookeeper) — single-node, 1 partition
+  # Topic telemetry-raw-events auto-created on first publish.
+  # Locked decisions: CLAUDE.md §2, P0.6
+  # ---------------------------------------------------------------------------
+  kafka:
+    image: apache/kafka:3.8.1
+    container_name: benchmark-kafka-p3
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_NUM_PARTITIONS: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    volumes:
+      - kafka-data-p3:/tmp/kraft-combined-logs
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Redis (speed layer — per-sensor latest readings, 60-minute TTL)
+  # Q1 in P3 reads Redis exclusively (LOCKED — CLAUDE.md §2, P0.2).
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: benchmark-redis-p3
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data-p3:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  ingest-api:
+    build: ./ingest-api
+    container_name: benchmark-ingest-p3
+    environment:
+      PROTOTYPE: p3
+      MONGO_URI: mongodb://mongodb:27017/iot_benchmark
+      MQTT_BROKER_URL: mqtt://mosquitto:1883
+      KAFKA_BROKER_URL: kafka:9092
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Go background worker (hourly batch rewrite of telemetry_aggregated)
+  # Does NOT write latest_by_sensor — that belongs to Redis (Phase 5).
+  # ---------------------------------------------------------------------------
+  worker:
+    build: ./worker
+    container_name: benchmark-worker-p3
+    command: ["--mode", "p3", "--mongo-uri", "mongodb://mongodb:27017/iot_benchmark", "--batch-interval", "1h"]
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   mongodb-data-p3:
+  kafka-data-p3:
+  redis-data-p3:

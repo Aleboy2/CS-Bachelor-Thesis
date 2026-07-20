@@ -1,6 +1,16 @@
 // =============================================================================
 // P2 (CQRS) / P3 (Lambda Architecture) — MongoDB Initialisation Script
 // =============================================================================
+// LAYER: Data layer bootstrap (schema + index creation only, no data).
+//
+// EXECUTED BY: the mongo:7.0 Docker entrypoint, mounted read-only into
+//   /docker-entrypoint-initdb.d and run automatically via mongosh the first
+//   time the container starts against an empty data directory — shared
+//   byte-identical by both docker-compose.p2.yml and docker-compose.p3.yml.
+// WRITTEN TO:  the `iot_benchmark` database inside the P2 or P3 MongoDB
+//   container. telemetry_aggregated is subsequently written by the Go
+//   worker (P2: continuous Kafka consumer; P3: hourly batch job) — this
+//   script only creates the collection and its indexes, never data.
 //
 // Creates:
 //   - device_registry          (same as P1)
