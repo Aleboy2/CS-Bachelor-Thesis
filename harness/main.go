@@ -15,6 +15,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 )
 
 func main() {
@@ -44,11 +45,22 @@ func runQueryCmd(args []string) {
 	warmup := fs.Int("warmup", 10, "Untimed warm-up iterations")
 	output := fs.String("output", "", "Output CSV file path (default: stdout summary only)")
 	seed := fs.Int64("seed", 42, "PRNG seed for target selection")
+	anchor := fs.String("anchor", "2026-06-01T00:00:00Z",
+		"Fixed reference point (RFC3339) for Q2-Q5 windows. Must match datagen "+
+			"seed's --benchmark-start for that scale, so windows fall inside the "+
+			"dense seeded history rather than a live-traffic gap. Do NOT default "+
+			"this to live wall-clock time — see CLAUDE.md discussion on anchor date.")
 
 	fs.Parse(args)
 
 	if *prototype == "" {
 		fmt.Fprintln(os.Stderr, "Error: --prototype is required (p1, p2, or p3)")
+		os.Exit(1)
+	}
+
+	anchorTime, err := time.Parse(time.RFC3339, *anchor)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: invalid --anchor %q: %v\n", *anchor, err)
 		os.Exit(1)
 	}
 
@@ -60,6 +72,7 @@ func runQueryCmd(args []string) {
 		Warmup:     *warmup,
 		OutputCSV:  *output,
 		Seed:       *seed,
+		Anchor:     anchorTime,
 	}
 
 	if err := RunQueryBenchmark(cfg); err != nil {

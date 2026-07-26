@@ -26,6 +26,7 @@ type QueryConfig struct {
 	Warmup     int
 	OutputCSV  string
 	Seed       int64
+	Anchor     time.Time // fixed reference point for Q2–Q5 windows (see main.go)
 }
 
 // QueryResult holds latency measurements for one query type.
@@ -71,13 +72,21 @@ func RunQueryBenchmark(cfg QueryConfig) error {
 		log.Println("[harness] connected to Redis")
 	}
 
-	// --- Find max timestamp (all query windows relative to this) ---
-	maxTS, err := FindMaxTimestamp(ctx, conn.RawColl)
+	// --- Determine the reference point for Q2–Q5 windows ---
+	// Anchored to a fixed historical date (cfg.Anchor), NOT the live max
+	// timestamp in telemetry_raw. Windows must be reproducible regardless of
+	// when the harness is run and regardless of how much/little live replay
+	// traffic has landed — see the flagged discussion on anchor-date vs
+	// live-wall-clock windows before this was locked in.
+	liveMaxTS, err := FindMaxTimestamp(ctx, conn.RawColl)
 	if err != nil {
 		return fmt.Errorf("find max timestamp: %w", err)
 	}
-	conn.MaxTS = maxTS
-	log.Printf("[harness] max timestamp: %s\n", maxTS.Format(time.RFC3339))
+	log.Printf("[harness] live max timestamp in telemetry_raw: %s (informational only, not used for windows)\n",
+		liveMaxTS.Format(time.RFC3339))
+
+	conn.MaxTS = cfg.Anchor
+	log.Printf("[harness] Q2-Q5 window anchor: %s\n", cfg.Anchor.Format(time.RFC3339))
 
 	// --- Load query targets ---
 	targets, err := LoadTargets(ctx, db)
@@ -97,8 +106,8 @@ func RunQueryBenchmark(cfg QueryConfig) error {
 
 	fmt.Printf("\n=== QUERY BENCHMARK: %s ===\n", cfg.Prototype)
 	fmt.Printf("Iterations: %d (+ %d warm-up)\n", cfg.Iterations, cfg.Warmup)
-	fmt.Printf("Max timestamp: %s\n\n", maxTS.Format("2006-01-02 15:04:05"))
-
+	fmt.Printf("Query window anchor: %s\n\n", cfg.Anchor.Format("2006-01-02 15:04:05"))
+	
 	// --- Define the query suite ---
 	type queryDef struct {
 		name    string
